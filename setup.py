@@ -22,8 +22,8 @@ import setuptools
 import numpy as np
 from Cython.Build import cythonize
 
-MAJOR = 2
-MINOR = 6
+MAJOR = 3
+MINOR = 0
 MICRO = 0
 
 ISRELEASED = True
@@ -41,12 +41,14 @@ this_dir = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_dir, 'README.md'), encoding='utf-8') as readme:
     LONG_DESCRIPTION = readme.read()
 
-CYTHON_EXTS = ['compute', 'converters', 'hamming', 'matrix', 'probability', 'matvec'] + \
-              ['expval', 'column_testing', 'converters_testing']
-CYTHON_MODULES = ['mthree']*7 + \
-                 ['mthree.test']*2
-CYTHON_SOURCE_DIRS = ['mthree']*7 + \
-                     ['mthree/test']*2
+CYTHON_EXTS = ['compute', 'converters', 'hamming', 'matrix', 'probability', 'matvec', 'expval'] + \
+              ['hadamard'] + \
+              ['texmex_cals', 'm3_cals'] + \
+              ['column_testing', 'converters_testing']
+CYTHON_MODULES = ['mthree.src']*7 + ['mthree.generators.src'] + \
+                 ['mthree.calibrations.src']*2 + ['mthree.test.src']*2
+CYTHON_SOURCE_DIRS = ['mthree/src']*7 + ['mthree/generators/src'] + \
+                     ['mthree/calibrations/src']*2 + ['mthree/test/src']*2
 
 # Add openmp flags
 OPTIONAL_FLAGS = []
