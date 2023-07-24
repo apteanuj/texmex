@@ -1,3 +1,4 @@
+"""Twirled Circuit object"""
 import threading
 import warnings
 import datetime
@@ -10,48 +11,57 @@ from qiskit.circuit import ClassicalRegister
 from mthree.exceptions import M3Error
 from mthree._helpers import system_info
 from mthree.generators import HadamardGenerator
+from mthree.calibrations.mapping import calibration_mapping
 from mthree.utils import final_measurement_mapping
-from mthree.twirling.tw_utils import chop_undo_twirling_and_merge
+from mthree.twirling.tw_utils import undo_twirling_and_merge,vals_from_dict, util_expval, util_expval_and_stddev
 
-class Tw_Circuits:
-    """Twirled Circuits object"""
+class Tw_Circuit:
+    """Twirled Circuit object"""
 
-    def __init__(self, backend, circuits=None, generator=None,
+    def __init__(self, backend, circuit=None, generator=None,
                  num_random_circuits=None, seed=None):
         """Twirled Circuit object
 
         Parameters:
             backend (Backend): Target backend 
-            circuits (list): List of transpiled circuits to twirl 
+            circuit (circuit): Transpiled circuit to twirl 
             generator (Generator): Generator for twirling circuits
             num_random_circuits (int): Number of random circuits if
                                        using random generator, default=16
             seed (int): Seed for random circuit generation, default=None
         """
         self.backend = backend
-
-        if circuits is None:
-            raise ValueError('There must be at least one circuit to twirl.')
-        else:
-            if not isinstance(circuits, list):
-                self.circuits = [circuits]
-            else:
-                self.circuits = circuits
-
-        self.generator = generator
         self.backend_info = system_info(backend)
-        self.tw_generators_list = None
-        self.tw_measurement_maps = None
 
-        self.num_tw_circuits = None
+        if circuit is None:
+            raise ValueError('There must be a circuit to twirl.')
+        else:
+            self.circuit = circuit
 
-        self.num_random_circuits = num_random_circuits
-        if seed is None:
-            self.seed = np.random.seed()
+        self.bit_to_physical_mapping = final_measurement_mapping(circuit)
+
+        self.qubits = vals_from_dict(self.bit_to_physical_mapping)
+        self.num_qubits = len(self.qubits)
         
-        self._tw_circuits_data = None
-        self.shots_per_circuit = None
+        if seed is None:
+            seed = np.random.seed()
 
+        if generator is None:
+            gen = HadamardGenerator(self.num_qubits)
+        elif 'Random' in generator.__name__:
+            # For random and random-compliment generators
+            if num_random_circuits is None:
+                num_random_circuits = 16
+            gen = generator(self.num_qubits, num_arrays=num_random_circuits, seed=seed)
+        else:
+            gen = generator(self.num_qubits)
+            if num_random_circuits is not None or seed is not None:
+                warnings.warn(f'random generator settings not applicable for {gen.name} generator')
+        self.generator = gen
+
+        self._tw_data = None
+        self.num_circuits = self.generator.length
+        
         self.job_id = None
         self._timestamp = None
         self._thread = None
@@ -64,7 +74,7 @@ class Tw_Circuits:
         """
         __dict__ = super().__getattribute__("__dict__")
         if attr in __dict__:
-            if attr in ["_tw_circuits_data", "timestamp"]:
+            if attr in ["_tw_data", "timestamp"]:
                 self._thread_check()
         return super().__getattribute__(attr)
 
@@ -80,15 +90,15 @@ class Tw_Circuits:
             raise self._job_error  # pylint: disable=raising-bad-type
 
     @property
-    def tw_circuits_data(self):
+    def tw_data(self):
         """Twirled Circuit data"""
-        if self._tw_circuits_data is None and self._thread is None:
-            raise M3Error("Twirled Circuits are not executed")
-        return self._tw_circuits_data
+        if self._tw_data is None and self._thread is None:
+            raise M3Error("Circuits are not executed")
+        return self._tw_data
 
     @property
     def timestamp(self):
-        """Timestamp of circuit job
+        """Timestamp of job
 
         Time is stored as UTC but returned in local time
 
@@ -99,94 +109,68 @@ class Tw_Circuits:
             return self._timestamp
         return self._timestamp.astimezone(tz.tzlocal())
 
-    @tw_circuits_data.setter
-    def tw_circuits_data(self, cals):
-        if self._tw_circuits_data is not None:
-            raise M3Error("Twirled Circuits are already executed")
-        self._tw_circuits_data = cals
+    @tw_data.setter
+    def tw_data(self, counts):
+        if self._tw_data is not None:
+            raise M3Error("Circuits are already executed")
+        self._tw_data = counts
 
-    def tw_circuits_and_generators(self):
-        """Twirled Circuits and list of generators from list of input circuits and underlying generator
+    def tw_circuits(self):
+        """Twirled circuits from underlying generator
 
         Returns:
-            list: Twirled circuits 
-            list: List of Generators used to twirl circuits
+            list: Twirled circuits
         """
         out_circuits = []
-        list_of_generators = []
-        measurement_maps = []
 
-        for qc in self.circuits:
-            # find final measurement layout and number of active measured qubits
-            layout = final_measurement_mapping(qc)
-            num_measured_qubits = len(layout)
-            measurement_maps.append(layout)
+        # obtain circuits after twirling by X gates based on generator 
+        for string in self.generator:
+            qc_twirled = self.circuit.remove_final_measurements(inplace=False)
+            qc_twirled.add_register(ClassicalRegister(self.num_qubits))
 
-            # find generator from the given generator method 
-            if self.generator is None:
-                gen = HadamardGenerator(num_measured_qubits)
-            elif 'Random' in self.generator.__name__:
-                # For random and random-compliment generators
-                if self.num_random_circuits is None:
-                    self.num_random_circuits = 16
-                gen = self.generator(num_measured_qubits, num_arrays=self.num_random_circuits, seed=self.seed)
-            else:
-                gen = self.generator(num_measured_qubits)
-                if self.num_random_circuits is not None or self.seed is not None:
-                    warnings.warn(f'random generator settings not applicable for {gen.name} generator')
-            # append to list of generators for all circuits
-            list_of_generators.append(list(gen))
+            for idx, val in enumerate(string[::-1]):
+                if val:
+                    qc_twirled.x(self.bit_to_physical_mapping[idx])
+                qc_twirled.measure(self.bit_to_physical_mapping[idx], idx)
+            out_circuits.append(qc_twirled)
+        return out_circuits
 
-            # obtain circuits after twirling by X gates based on generator 
-            for string in gen:
-                qc_twirled = qc.remove_final_measurements(inplace=False)
-                qc_twirled.add_register(ClassicalRegister(num_measured_qubits))
-
-                for idx, val in enumerate(string[::-1]):
-                    if val:
-                        qc_twirled.x(layout[idx])
-                    qc_twirled.measure(layout[idx], idx)
-                out_circuits.append(qc_twirled)
-        return out_circuits, list_of_generators, measurement_maps
-
-    def tw_data_from_backend(self, shots=int(1e4), async_cal=True, overwrite=False):
-        """Twirled Data from the target backend using the generator circuits
+    def tw_data_from_backend(self, shots=8192, async_job=True, overwrite=False):
+        """Twirled data from the target backend using the generator circuits
 
         Parameters:
-            shots(int): Number of shots per twirled circuit
-            async_cal (bool): Perform data acquistion asyncronously, default=True
-            overwrite (bool): Overwrite a previous data collection, default=False
+            shots(int): Total number of shots
+            async_job (bool): Perform data acquistion asyncronously, default=True
+            overwrite (bool): Overwrite previously acquired data, default=False
 
         Raises:
-            M3Error: Twirled Circuits are already executed and overwrite=False
+            M3Error: Twirled data is already acquired and overwrite=False
         """
-        if self._tw_circuits_data is not None and (not overwrite):
-            M3Error("Twirled Circuits are already executed and overwrite=False")
-        self._tw_circuits_data = None
-        tw_circuits, tw_generators, tw_measurement_maps = self.tw_circuits_and_generators()
-        
-        self.num_tw_circuits = len(tw_circuits)
-        self.tw_generators_list = tw_generators
-        self.tw_measurement_maps = tw_measurement_maps
-
+        if self._tw_data is not None and (not overwrite):
+            M3Error("Twirled data is already acquired and overwrite=False")
+        self._tw_data = None
         self._job_error = None
-        self.shots_per_circuit = shots
-        cal_job = self.backend.run(tw_circuits, shots=self.shots_per_circuit)
-        self.job_id = cal_job.job_id()
-        if async_cal:
+        shots_per_circuit = int(shots/self.num_circuits)
+
+        job = self.backend.run(self.tw_circuits(), shots=shots_per_circuit)
+        self.job_id = job.job_id()
+        if async_job:
             thread = threading.Thread(
                 target=_job_thread,
-                args=(cal_job, self),
+                args=(job, self),
             )
             self._thread = thread
             self._thread.start()
         else:
-            _job_thread(cal_job, self)
+            _job_thread(job, self)
 
-    def to_tw_circuits_data(self):
-        if self.tw_circuits_data is None:
-            raise M3Error('Twirled Circuit data is unavailable')
-        return chop_undo_twirling_and_merge(self.tw_circuits_data, self.tw_generators_list)
+    def to_untwirled_data(self):
+        """
+        Return untwirled data
+        """
+        if self.tw_data is None:
+            raise M3Error('No data has been acquired')
+        return undo_twirling_and_merge(self.tw_data, self.generator)
 
 
 def _job_thread(job, cal):
@@ -198,7 +182,7 @@ def _job_thread(job, cal):
         cal._job_error = error
         return
     else:
-        cal.tw_circuits_data = res.get_counts()
+        cal.tw_data = res.get_counts()
         timestamp = res.date
         # Needed since Aer result date is str but IBMQ job is datetime
         if isinstance(timestamp, datetime.datetime):
@@ -208,3 +192,5 @@ def _job_thread(job, cal):
         dt = datetime.datetime.fromisoformat(timestamp)
         dt_utc = dt.astimezone(datetime.timezone.utc)
         cal._timestamp = dt_utc
+
+# consider cythonizing undo_twirling_and_merge function for faster processing
