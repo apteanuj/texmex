@@ -22,7 +22,8 @@ from mthree.exceptions import M3Error
 from mthree._helpers import system_info
 from mthree.generators import HadamardGenerator
 from .mapping import calibration_mapping
-from .src import calibration_to_m3, calibration_to_texmex
+from .src import calibration_to_m3, calibration_to_texmex, calibration_to_texmex_counts
+from .utils import mitig_expval, mitig_expval_std
 
 
 class Calibration:
@@ -168,7 +169,7 @@ class Calibration:
                 out_circuits.append(qc)
         return out_circuits
 
-    def calibrate_from_backend(self, shots=int(1e4), async_cal=True, overwrite=False):
+    def calibrate_from_backend(self, shots=int(2**13), async_cal=True, overwrite=False):
         """Calibrate from the target backend using the generator circuits
 
         Parameters:
@@ -188,7 +189,7 @@ class Calibration:
         if self.generator.name == 'independent':
             self.shots_per_circuit = shots
         else:
-            self.shots_per_circuit = int(-(-shots // (self.generator.length / 2)))
+            self.shots_per_circuit = int(shots/self.num_circuits)
         cal_job = self.backend.run(cal_circuits, shots=self.shots_per_circuit)
         self.job_id = cal_job.job_id()
         if async_cal:
@@ -214,8 +215,46 @@ class Calibration:
         if self.calibration_data is None:
             raise M3Error('Calibration has no data')
         return calibration_to_texmex(self.calibration_data, self.generator)
+    
+    def to_texmex_counts(self):
+        """Return calibration data in M3 mitigation format
+        """
+        if self.calibration_data is None:
+            raise M3Error('Calibration has no data')
+        return calibration_to_texmex_counts(self.calibration_data, self.generator)
+    
+    def mitigated_expval_std(self, counts, qubits, operator):
+        """
+        Use the counts data to compute mitigated expectation value of an operator for a given circuit 
 
+        Parameters:
+            counts (dict): dictionary of counts
+            qubits (list): list of qubits measured at the end of the circuit
+            operator (str or dict or list): String or dict representation of diagonal 
+                                            qubit operators used in computing the expectation
+                                            value.
 
+        Returns:
+            list: list of results for the mitigated expectation value and uncertainity estimate
+        """
+        return mitig_expval_std(counts, qubits, operator, self.to_texmex_counts(), self.bit_to_physical_mapping)
+    
+    def mitigated_expval(self, counts, qubits, operator):
+        """
+        Use the counts data to compute mitigated expectation value of an operator for a given circuit 
+
+        Parameters:
+            counts (dict): dictionary of counts
+            qubits (list): list of qubits measured at the end of the circuit
+            operator (str or dict or list): String or dict representation of diagonal 
+                                            qubit operators used in computing the expectation
+                                            value.
+
+        Returns:
+            float: result for the mitigated expectation value
+        """
+        return mitig_expval(counts, qubits, operator, self.to_texmex_counts(), self.bit_to_physical_mapping)
+    
 def _job_thread(job, cal):
     """Process job result async"""
     try:
@@ -235,3 +274,6 @@ def _job_thread(job, cal):
         dt = datetime.datetime.fromisoformat(timestamp)
         dt_utc = dt.astimezone(datetime.timezone.utc)
         cal._timestamp = dt_utc
+
+
+# why ? else:self.shots_per_circuit = int(-(-shots // (self.generator.length / 2)))

@@ -14,3 +14,6 @@
 
 from .texmex_cals import calibration_to_texmex
 from .m3_cals import calibration_to_m3
+from .texmex_counts import calibration_to_texmex_counts
+
+# fix import after figuring out how to compile the cython file

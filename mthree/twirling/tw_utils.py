@@ -25,59 +25,30 @@ def vals_from_dict(dict):
     return values
 
 
-def undo_twirling(dict_list, generator):
+def binom(x):
     """
-    Undo the effect of twirling from the array_list to the converted form of the dictionaries in the dict_list.
+    Convert variable taking values {-1,+1} to variable taking value {0,1}
+    """
+    return (1+x)/2
 
+def estimator_ratio_binom_variables(p1,n1,p2,n2):
+    """
+    Estimator for ratio of two binomial variables
+    
     Parameters:
-        dict_list (list): List of dictionaries.
-        generator (list): List of binary strings from the generator
+        p1 (float): Probability of getting 1 for first binomial variable 
+        n1 (int): Number of samples for first binomial variable 
+        p2 (float): Probability of getting 1 for second binomial variable 
+        n2 (int): Number of samples for second binomial variable 
 
     Returns:
-        list: List of dictionaries with untwirled keys.
-    Raises Error if the length of dict_list does not match length of generator
+        float: unbiased estimate of ratios of the binomial distribution and associated uncertainity
     """
-    if len(dict_list)!=len(list(generator)):
-        raise ValueError('Length of dict_list must match length of generator')
-    result = []
-    for dictionary, array in zip(dict_list, generator):
-        undone_dict = {}
-        for key, value in dictionary.items():
-            array_int = [int(bit) for bit in array]
-            undone_key_as_list = [(array_int[i] + int(bit)) % 2 for i, bit in enumerate(key)]
-            undone_key = "".join([str(x) for x in undone_key_as_list])
-            undone_dict[undone_key] = value
-        result.append(undone_dict)
-    return result
+    theta = p1/p2
+    rel_error = np.sqrt(p1*(1-p1)/n1+p2*(1-p2)/n2)
+    sigma  = theta*rel_error
 
-def merge_dictionaries(dict_list):
-    """
-    Merge dictionaries in the given list into a single dictionary,
-    adding values based on the keys.
-
-    Parameters:
-        dict_list (list): List of dictionaries.
-
-    Returns:
-        dict: Merged dictionary with added values based on keys.
-    """
-    merged_dict = {key: sum(d.get(key, 0) for d in dict_list) for d in dict_list for key in d}
-    return merged_dict
-
-def undo_twirling_and_merge(dict_list, generator):
-    """
-    Undo the effect of twirling from the generator for the count dictionaries in the dict_list and merge
-    the resulting list of dictionaries
-
-    Parameters:
-        dict_list (list): List of dictionaries.
-        generator (list): List of binary strings from the generator
-
-    Returns:
-        dict: Merged dictionary
-    Raises Error if the length of dict_list does not match length of generator
-    """
-    return merge_dictionaries(undo_twirling(dict_list, generator))
+    return (theta, sigma)
 
 def permute_bitstring(bitstring, shuffle_pattern):
     """
@@ -199,19 +170,29 @@ def util_expval_and_stddev(counts, operator, mapping, calibration_counts, calibr
 
     # find the expectation value from the circuit data and the associated uncertainity
     uncorrected_expval  = expval(items=counts, exp_ops=operator)
-    uncorrected_expval_uncertainity = np.sqrt(2*np.log(4/0.05)/shots)
+    #uncorrected_expval_uncertainity = np.sqrt(2*np.log(4/0.05)/shots)
+    #uncorrected_expval_uncertainity = np.sqrt(1/shots)
+    uncorrected_expval_uncertainity = 0.257*np.sqrt((1-uncorrected_expval**2)/shots)
+    #uncorrected_expval_uncertainity = 1.03*np.sqrt((1-uncorrected_expval**2)/shots)
 
     # find the expectation value from the calibration data and the associated uncertainity
     calibration_expval  = expval(items=marginalized_calibration_counts, exp_ops=operator)
-    calibration_expval_uncertainity = np.sqrt(2*np.log(4/0.05)/calibration_shots)
+    #calibration_expval_uncertainity = np.sqrt(2*np.log(4/0.05)/calibration_shots)
+    #calibration_expval_uncertainity = np.sqrt(1/calibration_shots)
+    calibration_expval_uncertainity = 0.257*np.sqrt((1-calibration_expval**2)/shots)
+    #calibration_expval_uncertainity = 1.03*np.sqrt((1-calibration_expval**2)/shots)
 
     # divide by the calibration expectation value to obtain corrected expectation value 
     corrected_expval = uncorrected_expval/calibration_expval
-    uncertainity_corrected_expval = (uncorrected_expval_uncertainity+calibration_expval_uncertainity)/(np.abs(calibration_expval)-calibration_expval_uncertainity)
+    #uncertainity_corrected_expval = (uncorrected_expval_uncertainity+calibration_expval_uncertainity)/(np.abs(calibration_expval)-calibration_expval_uncertainity)
+    uncertainity_corrected_expval = (uncorrected_expval_uncertainity + calibration_expval_uncertainity*np.abs(uncorrected_expval)/calibration_expval)/(calibration_expval-calibration_expval_uncertainity)
+    #uncertainity_corrected_expval = (1/np.sqrt(shots) + 1/np.sqrt(calibration_shots))/(3.89*calibration_expval-1/np.sqrt(calibration_shots))
+    #uncertainity_corrected_expval = (1/np.sqrt(shots) + 1/np.sqrt(calibration_shots))/(calibration_expval-1/np.sqrt(calibration_shots))
 
     #result_dict = {'uncorrected_expval': uncorrected_expval, 'expval': corrected_expval, 'uncertainity': uncertainity_corrected_expval}
 
     return (corrected_expval, uncertainity_corrected_expval)
+    #return estimator_ratio_binom_variables(p1=binom(uncorrected_expval),n1=calibration_shots,p2=binom(calibration_expval),n2=calibration_shots)
 
 def util_expval(counts, operator, mapping, calibration_counts, calibration_mapping):
     """
@@ -250,3 +231,4 @@ def util_expval(counts, operator, mapping, calibration_counts, calibration_mappi
     #result_dict = {'uncorrected_expval': uncorrected_expval, 'expval': corrected_expval}
 
     return corrected_expval
+

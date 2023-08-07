@@ -345,3 +345,7 @@ def vector_to_quasiprobs(vec, counts):
         out_counts[key] = vec[idx]
         idx += 1
     return QuasiDistribution(out_counts)
+
+
+# rename files from tw to texmex 
+# write init file for the import "from mthree.twirling.tw_circuits import Tw_Circuit"
