@@ -11,8 +11,7 @@ from mthree.exceptions import M3Error
 from mthree._helpers import system_info
 from mthree.generators import HadamardGenerator
 from mthree.utils import final_measurement_mapping
-from mthree.calibrations.src import calibration_to_texmex, calibration_to_texmex_counts
-from mthree.twirling.tw_utils import vals_from_dict
+from mthree.calibrations.src import calibration_to_texmex_counts
 
 
 class Tw_Circuit:
@@ -40,7 +39,7 @@ class Tw_Circuit:
 
         self.bit_to_physical_mapping = final_measurement_mapping(circuit)
 
-        self.qubits = vals_from_dict(self.bit_to_physical_mapping)
+        self.qubits = [value for key,value in self.bit_to_physical_mapping.items()]
         self.num_qubits = len(self.qubits)
         
         if seed is None:
