@@ -138,8 +138,9 @@ def mitig_expval_std(counts, qubits, operator, calibration_counts, bit_to_physic
 
     # divide by the calibration expectation value to obtain mitigated expectation value 
     mitigated_expval = expvalue/calib_expval
-    mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
-    mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
+    #mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
+    #mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
+    mitigated_std = 1/calib_expval*(np.sqrt(1/shots+1/calib_shots))
 
     return (mitigated_expval, mitigated_std)
 
@@ -180,7 +181,8 @@ def mitig_expval(counts, qubits, operator, calibration_counts, bit_to_physical_m
 
     # divide by the calibration expectation value to obtain mitigated expectation value 
     mitigated_expval = expvalue/calib_expval
-    mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
-    mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
+    #mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
+    #mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
+    mitigated_std = 1/calib_expval*(np.sqrt(1/shots+1/calib_shots))
 
     return mitigated_expval
