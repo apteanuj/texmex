@@ -128,19 +128,23 @@ def mitig_expval_std(counts, qubits, operator, calibration_counts, bit_to_physic
     # marginalize calibration data 
     marginalized_calibration_counts = marginalize_counts(calibration_counts, qubits, bit_to_physical_mapping)
 
-    # find the expectation value from the circuit data and the associated uncertainity
+    # find the expectation value from the circuit data
     expvalue  = expval(items=counts, exp_ops=operator)
-    #expvalue_rel_variance = rel_variance_from_expval(expvalue, shots)
 
-    # find the expectation value from the calibration data and the associated uncertainity
+    # find the expectation value from the calibration data
     calib_expval  = expval(items=marginalized_calibration_counts, exp_ops=operator)
-    #calib_rel_variance = rel_variance_from_expval(calib_expval, calib_shots)
 
     # divide by the calibration expectation value to obtain mitigated expectation value 
     mitigated_expval = expvalue/calib_expval
-    #mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
-    #mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
     mitigated_std = (1/calib_expval)*np.sqrt(1/shots + 1/calib_shots)
+
+    # computation of  relative variances 
+    # unnecessary for simplified variance estimate of mitigated expectation value 
+    
+    # expvalue_rel_variance = rel_variance_from_expval(expvalue, shots)
+    # calib_rel_variance = rel_variance_from_expval(calib_expval, calib_shots)
+    # mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
+    # mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
 
     return (mitigated_expval, mitigated_std)
 
@@ -171,18 +175,14 @@ def mitig_expval(counts, qubits, operator, calibration_counts, bit_to_physical_m
     # marginalize calibration data 
     marginalized_calibration_counts = marginalize_counts(calibration_counts, qubits, bit_to_physical_mapping)
 
-    # find the expectation value from the circuit data and the associated uncertainity
+    # find the expectation value from the circuit data
     expvalue  = expval(items=counts, exp_ops=operator)
-    #expvalue_rel_variance = rel_variance_from_expval(expvalue, shots)
 
-    # find the expectation value from the calibration data and the associated uncertainity
+    # find the expectation value from the calibration data
     calib_expval  = expval(items=marginalized_calibration_counts, exp_ops=operator)
-    #calib_rel_variance = rel_variance_from_expval(calib_expval, calib_shots)
 
     # divide by the calibration expectation value to obtain mitigated expectation value 
     mitigated_expval = expvalue/calib_expval
-    #mitigated_rel_variance = expvalue_rel_variance + calib_rel_variance
-    #mitigated_std = mitigated_expval*np.sqrt(mitigated_rel_variance)
     mitigated_std = (1/calib_expval)*np.sqrt(1/shots + 1/calib_shots)
 
     return mitigated_expval
