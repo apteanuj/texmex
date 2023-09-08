@@ -43,12 +43,12 @@ with open(os.path.join(this_dir, 'README.md'), encoding='utf-8') as readme:
 
 CYTHON_EXTS = ['compute', 'converters', 'hamming', 'matrix', 'probability', 'matvec', 'expval'] + \
               ['hadamard'] + \
-              ['texmex_cals', 'm3_cals'] + \
+              ['texmex_cals', 'm3_cals', 'texmex_counts'] + \
               ['column_testing', 'converters_testing']
 CYTHON_MODULES = ['mthree.src']*7 + ['mthree.generators.src'] + \
-                 ['mthree.calibrations.src']*2 + ['mthree.test.src']*2
+                 ['mthree.calibrations.src']*3 + ['mthree.test.src']*2
 CYTHON_SOURCE_DIRS = ['mthree/src']*7 + ['mthree/generators/src'] + \
-                     ['mthree/calibrations/src']*2 + ['mthree/test/src']*2
+                     ['mthree/calibrations/src']*3 + ['mthree/test/src']*2
 
 # Add openmp flags
 OPTIONAL_FLAGS = []

@@ -1,3 +1,5 @@
+# distutils: language = c++
+
 # This code is part of Mthree.
 #
 # (C) Copyright IBM 2023.

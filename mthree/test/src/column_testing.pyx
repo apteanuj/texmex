@@ -1,3 +1,5 @@
+# distutils: language = c++
+
 # This code is part of mthree.
 #
 # (C) Copyright IBM Quantum 2021.
